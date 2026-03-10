@@ -62,4 +62,3 @@ port.onMessage.addListener((rawMsg: unknown) => {
 attachDelegatedListeners(actions)
 
 renderView()
-sendToBackground({ type: 'start_scan' })

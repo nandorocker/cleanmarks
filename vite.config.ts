@@ -62,6 +62,7 @@ export default defineConfig(({ mode }) => {
       },
       target: 'esnext',
       minify: false,
+      modulePreload: { polyfill: false },
     },
     define: {
       __IS_CHROME__: JSON.stringify(isChrome),
