@@ -13,7 +13,7 @@
     "default_title": "Clean Bookmarks"
   },
   "sidebar_action": {
-    "default_panel": "sidebar.html",
+    "default_panel": "src/sidebar/index.html",
     "default_title": "Clean Bookmarks"
   },
   "icons": {
