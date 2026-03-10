@@ -12,11 +12,12 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/webextension-polyfill": "^0.10.7",
+    "jsdom": "^28.1.0",
     "typescript": "^5.4.0",
     "vite": "^5.2.0",
     "vitest": "^1.4.0",
-    "@types/chrome": "^0.0.268",
-    "webextension-polyfill": "^0.10.0",
-    "@types/webextension-polyfill": "^0.10.7"
+    "webextension-polyfill": "^0.10.0"
   }
 }
