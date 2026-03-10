@@ -1,0 +1,9 @@
+{
+  "permissions": ["bookmarks", "storage", "sidePanel"],
+  "side_panel": {
+    "default_path": "sidebar.html"
+  },
+  "action": {
+    "default_title": "Clean Bookmarks"
+  }
+}
