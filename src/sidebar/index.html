@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clean Bookmarks</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      background: #1a1a1a;
+      color: #e8e8e8;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 10px 14px;
+      border-bottom: 1px solid #333;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 14px; font-weight: 600; }
+
+    #content { flex: 1; overflow-y: auto; }
+
+    /* Idle */
+    .idle-view {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%; gap: 10px; padding: 20px;
+      text-align: center;
+    }
+    .idle-view p { color: #888; font-size: 12px; }
+
+    /* Scanning */
+    .scanning-view { padding: 16px; }
+    .progress-bar-track { background: #333; border-radius: 4px; height: 6px; margin: 8px 0 12px; }
+    .progress-bar-fill { background: #5b9cf6; height: 6px; border-radius: 4px; transition: width 0.2s; }
+    .progress-counters { font-size: 11px; color: #888; display: flex; gap: 12px; }
+
+    /* Results */
+    .section { border-bottom: 1px solid #2a2a2a; }
+    .section-header {
+      padding: 9px 14px; display: flex; justify-content: space-between;
+      align-items: center; cursor: pointer; user-select: none;
+    }
+    .section-header:hover { background: #222; }
+    .section-title { font-weight: 600; font-size: 12px; }
+    .section-title.dead { color: #e05c5c; }
+    .section-title.moved { color: #e0a95c; }
+    .section-title.unreachable { color: #888; }
+    .section-controls { display: flex; gap: 8px; font-size: 11px; color: #666; }
+    .section-controls span { cursor: pointer; text-decoration: underline; }
+    .section-controls span:hover { color: #aaa; }
+    .section-list { overflow-y: auto; max-height: 300px; }
+    .bookmark-row {
+      padding: 5px 14px; display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid #222; cursor: pointer;
+    }
+    .bookmark-row:hover { background: #222; }
+    .bookmark-info { min-width: 0; flex: 1; }
+    .bookmark-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bookmark-url { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #666; font-size: 11px; }
+    .status-badge { font-size: 10px; color: #666; flex-shrink: 0; }
+
+    /* Zap bar */
+    .zap-bar {
+      padding: 12px 14px; border-top: 1px solid #333;
+      flex-shrink: 0; display: flex; flex-direction: column; gap: 4px;
+    }
+    .zap-count { font-size: 11px; color: #888; text-align: center; }
+
+    /* Buttons */
+    button {
+      border: none; border-radius: 6px; cursor: pointer;
+      font-family: inherit; font-size: 13px; padding: 8px 16px;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: default; }
+    .btn-primary { background: #5b9cf6; color: #fff; width: 100%; }
+    .btn-zap { background: #e05c5c; color: #fff; width: 100%; font-weight: 600; }
+    .btn-ghost { background: transparent; border: 1px solid #444; color: #888; font-size: 12px; }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    .modal {
+      background: #252525; border: 1px solid #444; border-radius: 8px;
+      padding: 20px; width: 240px;
+    }
+    .modal h2 { font-size: 14px; margin-bottom: 8px; }
+    .modal p { color: #888; font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
+    .modal-buttons { display: flex; gap: 8px; }
+    .modal-buttons button { flex: 1; }
+    .btn-cancel { background: #333; color: #aaa; }
+    .btn-confirm-delete { background: #e05c5c; color: #fff; }
+
+    /* Error */
+    .error-view {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%; gap: 10px; padding: 20px; text-align: center;
+    }
+    .error-view p { color: #e05c5c; font-size: 12px; }
+
+    .chevron { font-size: 10px; color: #555; margin-left: 4px; }
+
+    input[type="checkbox"] { accent-color: #5b9cf6; flex-shrink: 0; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🧹 Clean Bookmarks</h1>
+    <button class="btn-ghost" id="settings-btn" style="padding:4px 8px;font-size:11px">⚙️</button>
+  </header>
+  <div id="content"></div>
+  <div id="zap-bar"></div>
+  <div id="modal-container"></div>
+  <script type="module" src="./index.ts"></script>
+</body>
+</html>
