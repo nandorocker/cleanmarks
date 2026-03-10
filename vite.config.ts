@@ -55,6 +55,8 @@ export default defineConfig(({ mode }) => {
           sidebar: resolve(__dirname, 'src/sidebar/index.html'),
         },
         output: {
+          // Service workers don't have `window`; shim it with `self` for background only
+          banner: (chunk) => chunk.name === 'background' ? 'const window = self;' : '',
           entryFileNames: '[name].js',
           chunkFileNames: '[name].js',
           assetFileNames: '[name].[ext]',
