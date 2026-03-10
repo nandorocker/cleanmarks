@@ -20,8 +20,14 @@ function manifestPlugin(isChrome: boolean): Plugin {
         delete merged.sidebar_action
         writeFileSync(`${outDir}/manifest.json`, JSON.stringify(merged, null, 2))
       } else {
-        // Firefox: remove sidePanel key if present
-        const ff = { ...base }
+        // Firefox MV3 uses background.scripts instead of background.service_worker
+        const ff = {
+          ...base,
+          background: {
+            scripts: [base.background.service_worker],
+            type: 'module',
+          },
+        }
         writeFileSync(`${outDir}/manifest.json`, JSON.stringify(ff, null, 2))
       }
 
