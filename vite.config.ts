@@ -3,6 +3,8 @@ import type { Plugin } from 'vite'
 import { resolve } from 'path'
 import { readFileSync, writeFileSync, copyFileSync, mkdirSync } from 'fs'
 
+const { version: appVersion } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
+
 function manifestPlugin(isChrome: boolean): Plugin {
   return {
     name: 'manifest-plugin',
@@ -68,6 +70,7 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       __IS_CHROME__: JSON.stringify(isChrome),
+      __APP_VERSION__: JSON.stringify(appVersion),
     },
     plugins: [manifestPlugin(isChrome)],
     test: {

@@ -9,9 +9,11 @@ import type { AppView } from './ui'
 import type { CleanupMode, CleanupOutcome } from '../types'
 import { syncSidebarTitle } from '../platform'
 
+declare const __APP_VERSION__: string
+
 let state = createState()
 const view: AppView = { screen: 'folders', tree: [], folders: new Set(), expanded: new Set(), sections: new Set(['dead']),
-  mode: 'move', busy: false, loading: true, notice: '', confirm: false, version: browser.runtime.getManifest().version }
+  mode: 'move', busy: false, loading: true, notice: '', confirm: false, version: __APP_VERSION__ }
 let scanner: Scanner | null = null
 let generation = 0
 let anchor: string | null = null

@@ -28,7 +28,7 @@ describe('review UI', () => {
   it('gives About an app identity and a tiny credit line, using the bounce.nan.do coffee artwork consistently', () => {
     document.body.innerHTML = '<main id="app"></main>'
     const root = document.getElementById('app')!
-    const view: AppView = { screen: 'complete', tree: [], folders: new Set(), expanded: new Set(), sections: new Set(), mode: 'move', busy: false, loading: false, notice: '', confirm: false, motionEnabled: false, version: '0.1.0',
+    const view: AppView = { screen: 'complete', tree: [], folders: new Set(), expanded: new Set(), sections: new Set(), mode: 'move', busy: false, loading: false, notice: '', confirm: false, motionEnabled: false, version: '1.0.0-beta.1',
       completion: { mode: 'move', bookmarks: [{ id: '1', title: 'Link', url: 'https://example.com' }], remaining: 0 } }
     renderApp(root, createState(), view)
     const coffee = root.querySelector('.support .coffee-icon')!.outerHTML
@@ -37,7 +37,7 @@ describe('review UI', () => {
     const about = root.querySelector('.about-dialog')!
     expect(about.querySelector('.about-identity h2')!.textContent).toBe('Cleanmarks')
     expect(about.querySelector('.about-identity .app-icon')!.getAttribute('src')).toBe('../../icons/icon128.png')
-    expect(about.querySelector('.about-version')!.textContent).toBe('Version 0.1.0')
+    expect(about.querySelector('.about-version')!.textContent).toBe('Version 1.0.0-beta.1')
     expect(about.querySelector('.about-footer')!.textContent!.startsWith('©2026')).toBe(true)
     expect(about.querySelector('.about-message')!.textContent).toBe('Made with ❤️ by nando rossi')
     expect((about.querySelector('.about-message a') as HTMLAnchorElement).href).toBe('https://nan.do/')
@@ -115,7 +115,7 @@ describe('review UI', () => {
   it('updates scanning progress in place, including while About is open', () => {
     document.body.innerHTML = '<main id="app"></main>'
     const root = document.getElementById('app')!
-    const view: AppView = { screen: 'results', tree: [], folders: new Set(), expanded: new Set(), sections: new Set(), mode: 'move', busy: false, loading: false, notice: '', confirm: false, version: '0.1.0' }
+    const view: AppView = { screen: 'results', tree: [], folders: new Set(), expanded: new Set(), sections: new Set(), mode: 'move', busy: false, loading: false, notice: '', confirm: false, version: '1.0.0-beta.1' }
     let state = { ...createState(), phase: 'scanning' as const, progress: { total: 100, checked: 0 } }
     renderApp(root, state, view)
     const cancel = root.querySelector('[data-action="cancel"]')!

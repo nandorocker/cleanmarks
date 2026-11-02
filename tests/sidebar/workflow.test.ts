@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const api = vi.hoisted(() => ({ getTree: vi.fn(), get: vi.fn(), sendMessage: vi.fn(), checkUrl: vi.fn() }))
 vi.mock('webextension-polyfill', () => ({ default: {
   bookmarks: { getTree: api.getTree }, storage: { local: { get: api.get } },
-  runtime: { sendMessage: api.sendMessage, getManifest: () => ({ version: '0.1.0' }) },
+  runtime: { sendMessage: api.sendMessage, getManifest: () => ({ version: '0.99.1' }) },
 } }))
 vi.mock('../../src/background/checker', () => ({ checkUrl: api.checkUrl }))
 
@@ -50,9 +50,10 @@ describe('sidebar workflow', () => {
 
   it('opens an accessible About popup with version and license credits, then restores focus', () => {
     const about = document.querySelector<HTMLButtonElement>('[data-action="about"]')!
-    expect(about.textContent).toContain('v0.1.0')
+    expect(about.textContent).toContain('v1.0.0-beta.1')
     about.click()
     const dialog = document.querySelector('dialog')!
+    expect(dialog.textContent).toContain('Version 1.0.0-beta.1')
     expect(dialog.textContent).toContain('Made with ❤️ by nando rossi')
     expect(dialog.textContent).toContain('©2026')
     expect(dialog.textContent).toContain('CodexBar')

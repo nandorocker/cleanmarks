@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Cleanmarks",
-  "version": "0.1.0",
+  "version": "0.99.1",
   "description": "A fresh start for your bookmarks. Find broken links and clear the clutter.",
   "permissions": ["bookmarks", "storage"],
   "host_permissions": ["<all_urls>"],
