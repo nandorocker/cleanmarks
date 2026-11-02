@@ -28,6 +28,15 @@ function render(): void {
 function scheduleRender(): void {
   if (renderTimer === undefined) renderTimer = setTimeout(() => { renderTimer = undefined; render() }, 80)
 }
+// Keep the panel at its designed size: pinch-zoom arrives as ctrl+wheel, Safari pinches as gesture
+// events, and keyboard zoom as Cmd/Ctrl+0/±. The host's own zoom shortcuts can still bypass the page.
+function preventDefault(event: Event): void { event.preventDefault() }
+window.addEventListener('wheel', zoomWheel => { if (zoomWheel.ctrlKey || zoomWheel.metaKey) zoomWheel.preventDefault() }, { passive: false })
+window.addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && /^[+\-=&0]$/.test(event.key)) event.preventDefault()
+})
+window.addEventListener('gesturestart', preventDefault)
+window.addEventListener('gesturechange', preventDefault)
 function folderIds(id: string): string[] {
   const ids: string[] = []
   function visit(nodes: AppView['tree'], include: boolean): void {

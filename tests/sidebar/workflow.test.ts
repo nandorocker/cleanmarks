@@ -53,7 +53,8 @@ describe('sidebar workflow', () => {
     expect(about.textContent).toContain('v0.1.0')
     about.click()
     const dialog = document.querySelector('dialog')!
-    expect(dialog.textContent).toContain('©2026 made with ❤️ by nando rossi')
+    expect(dialog.textContent).toContain('Made with ❤️ by nando rossi')
+    expect(dialog.textContent).toContain('©2026')
     expect(dialog.textContent).toContain('CodexBar')
     expect(dialog.textContent).toContain('MIT')
     expect(dialog.textContent).toContain('MPL-2.0')

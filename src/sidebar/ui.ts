@@ -1,7 +1,7 @@
 import type { SidebarState } from './state'
 import type { BookmarkNode } from '../bookmark-tree'
 import type { BookmarkResult, CleanupMode, FlatBookmark } from '../types'
-import { animateView, animateAccordionPane } from './motion'
+import { animateView, animateAccordionPane, pendingAccordionTransition } from './motion'
 
 export interface Completion {
   mode: CleanupMode
@@ -35,6 +35,8 @@ const iconStarburst = '<svg class="icon-starburst" viewBox="0 0 128 128" aria-hi
 // Same coffee artwork used on bounce.nan.do, shared by About and completion.
 const coffeeIcon = '<svg class="coffee-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5 8h14l-1.5 9A2 2 0 0 1 15.52 19H8.48A2 2 0 0 1 6.5 17L5 8Z" fill="currentColor"/><path d="M5 8H4a2 2 0 0 0 0 4h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 8V5M12 8V5M16 8V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
 const shareText = 'A fresh start for your bookmarks. Try Cleanmarks: https://apps.nan.do/cleanmarks'
+const githubIcon = '<svg class="link-icon" width="13" height="13" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="currentColor" d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.34c-2.23.49-2.7-1.07-2.7-1.07-.36-.93-.89-1.18-.89-1.18-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.23 1.88.87 2.34.67.07-.52.28-.87.51-1.07-1.79-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.22 2.2.82a7.65 7.65 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.19c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>'
+const siteIcon = '<svg class="link-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c2.5 2.7 3.8 5.7 3.8 9s-1.3 6.3-3.8 9c-2.5-2.7-3.8-5.7-3.8-9s1.3-6.3 3.8-9Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>'
 type ReviewStatus = 'dead' | 'unreachable' | 'moved'
 const statusPaths: Record<ReviewStatus, string> = {
   dead: '<path d="M8 17H6a2 2 0 0 1-2-2v-4a8 8 0 0 1 16 0v4a2 2 0 0 1-2 2h-2v4H8Z"/><circle cx="8.5" cy="10.5" r="1.5"/><circle cx="15.5" cy="10.5" r="1.5"/><path d="m12 13-1 2h2ZM11 18v3m2-3v3"/>',
@@ -84,16 +86,40 @@ function bookmarkRows(results: BookmarkResult[], state: SidebarState, view: AppV
   }).join('')
 }
 
+const accordionUpdates = new WeakMap<HTMLElement, number>()
+
 export function updateAccordion(root: HTMLElement, state: SidebarState, view: AppView): void {
+  const version = (accordionUpdates.get(root) ?? 0) + 1
+  accordionUpdates.set(root, version)
+  const transitions: Promise<void>[] = []
   for (const button of root.querySelectorAll<HTMLButtonElement>('.category-toggle')) {
     const status = button.dataset.status!
     const open = view.sections.has(status)
-    if (button.getAttribute('aria-expanded') === String(open)) continue
-    button.setAttribute('aria-expanded', String(open))
     const pane = root.querySelector<HTMLElement>(`#${button.getAttribute('aria-controls')}`)!
-    animateAccordionPane(pane, open, view.motionEnabled,
-      open ? bookmarkRows(state.results.filter(r => r.status === status), state, view) : undefined)
+    if (button.getAttribute('aria-expanded') === String(open)) {
+      // A previous click may still be collapsing a pane above this heading.
+      const pending = pendingAccordionTransition(pane)
+      if (pending) transitions.push(pending)
+      continue
+    }
+    button.setAttribute('aria-expanded', String(open))
+    transitions.push(animateAccordionPane(pane, open, view.motionEnabled,
+      open ? bookmarkRows(state.results.filter(r => r.status === status), state, view) : undefined))
   }
+  const heading = root.querySelector<HTMLElement>('.category-toggle[aria-expanded="true"]')?.closest('h2')
+  const scroller = root.querySelector<HTMLElement>('#results')
+  if (!heading || !scroller) return
+  void Promise.all(transitions).then(() => {
+    // Closing the old pane changes the heading's final position. Wait for both
+    // panes, and ignore a superseded click or a screen that has since unmounted.
+    if (accordionUpdates.get(root) !== version || !heading.isConnected || !scroller.isConnected) return
+    const top = scroller.scrollTop + heading.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+    const limit = Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+    const target = Math.max(0, Math.min(top, limit))
+    if (Math.abs(target - scroller.scrollTop) < 1) return
+    const smooth = view.motionEnabled !== false && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    scroller.scrollTo({ top: target, behavior: smooth ? 'smooth' : 'instant' })
+  })
 }
 
 export function updateFolderSelection(root: HTMLElement, view: AppView): void {
@@ -218,10 +244,14 @@ export function renderApp(root: HTMLElement, state: SidebarState, view: AppView)
       <button class="about-close" data-action="close_about" data-focus="close-about" aria-label="Close about"><span aria-hidden="true">×</span></button>
       <div class="about-main">
         <div class="about-identity"><div class="about-app-icon">${bookmarkIcon}</div><div><h2 id="about-title">Cleanmarks</h2>${view.version ? `<p class="about-version">Version ${escape(view.version)}</p>` : ''}</div></div>
-        <a class="about-site" href="https://apps.nan.do/cleanmarks" target="_blank" rel="noopener noreferrer">apps.nan.do/cleanmarks <span aria-hidden="true">↗</span></a>
+        <p class="about-message">Made with ❤️ by <a href="https://nan.do" target="_blank" rel="noopener noreferrer">nando rossi</a></p>
+        <div class="about-links">
+          <a class="about-secondary" href="https://github.com/nandorocker/cleanmarks" target="_blank" rel="noopener noreferrer">${githubIcon} Repo</a>
+          <a class="about-secondary" href="https://apps.nan.do/cleanmarks" target="_blank" rel="noopener noreferrer">${siteIcon} Site</a>
+        </div>
         <a class="coffee-link about-coffee" href="https://buymeacoffee.com/nandorossi" target="_blank" rel="noopener noreferrer">${coffeeIcon} Buy me a coffee</a>
       </div>
-      <p class="about-footer">©${copyYears} made with ❤️ by <a href="https://nan.do" target="_blank" rel="noopener noreferrer">nando rossi</a> · <a class="credit" href="https://github.com/steipete/CodexBar" target="_blank" rel="noopener noreferrer">CodexBar</a> <a class="credit-license" href="../../licenses/CodexBar-MIT.txt" target="_blank" rel="noopener noreferrer">MIT</a> · <a class="credit" href="https://github.com/mozilla/webextension-polyfill" target="_blank" rel="noopener noreferrer">webextension-polyfill</a> <a class="credit-license" href="../../licenses/webextension-polyfill-MPL-2.0.txt" target="_blank" rel="noopener noreferrer">MPL-2.0</a></p></dialog>` : ''}`
+      <p class="about-footer">©${copyYears} · <a class="credit" href="https://github.com/steipete/CodexBar" target="_blank" rel="noopener noreferrer">CodexBar</a> <a class="credit-license" href="../../licenses/CodexBar-MIT.txt" target="_blank" rel="noopener noreferrer">MIT</a> · <a class="credit" href="https://github.com/mozilla/webextension-polyfill" target="_blank" rel="noopener noreferrer">webextension-polyfill</a> <a class="credit-license" href="../../licenses/webextension-polyfill-MPL-2.0.txt" target="_blank" rel="noopener noreferrer">MPL-2.0</a></p></dialog>` : ''}`
   updateFolderSelection(root, view)
   const resultsElement = root.querySelector('#results')
   if (resultsElement) resultsElement.scrollTop = scroll

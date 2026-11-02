@@ -39,10 +39,12 @@ describe('review UI', () => {
     expect(about.querySelector('.about-identity .app-icon')!.getAttribute('src')).toBe('../../icons/icon128.png')
     expect(about.querySelector('.about-version')!.textContent).toBe('Version 0.1.0')
     expect(about.querySelector('.about-footer')!.textContent!.startsWith('©2026')).toBe(true)
-    expect(about.querySelector('.about-footer')!.textContent).toContain('made with ❤️ by nando rossi')
-    const footerLinks = [...about.querySelectorAll<HTMLAnchorElement>('.about-footer a')]
-    expect(footerLinks.some(a => a.textContent === 'nando rossi' && a.href === 'https://nan.do/')).toBe(true)
-    expect(footerLinks.filter(a => new URL(a.href, 'https://x').pathname.includes('licenses/'))).toHaveLength(2)
+    expect(about.querySelector('.about-message')!.textContent).toBe('Made with ❤️ by nando rossi')
+    expect((about.querySelector('.about-message a') as HTMLAnchorElement).href).toBe('https://nan.do/')
+    const secondary = [...about.querySelectorAll<HTMLAnchorElement>('.about-secondary')]
+    expect(secondary.map(a => a.textContent!.trim())).toEqual(['Repo', 'Site'])
+    expect(secondary[0]!.href).toBe('https://github.com/nandorocker/cleanmarks')
+    expect([...about.querySelectorAll<HTMLAnchorElement>('.about-footer a')].filter(a => new URL(a.href, 'https://x').pathname.includes('licenses/'))).toHaveLength(2)
     expect(about.querySelector('.about-coffee .coffee-icon')!.outerHTML).toBe(coffee)
     expect(about.querySelector('.coffee-icon path')!.getAttribute('d')).toBe('M5 8h14l-1.5 9A2 2 0 0 1 15.52 19H8.48A2 2 0 0 1 6.5 17L5 8Z')
     expect(about.querySelector('[data-action="close_about"]')!.getAttribute('aria-label')).toBe('Close about')

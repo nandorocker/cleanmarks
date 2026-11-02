@@ -8,11 +8,15 @@ interface MotionChange {
   direction?: 'forward' | 'back'
 }
 
-const accordionAnimations = new WeakMap<HTMLElement, Animation>()
+const accordionAnimations = new WeakMap<HTMLElement, { animation: Animation; finished: Promise<void> }>()
 
-export function animateAccordionPane(pane: HTMLElement, open: boolean, enabled = true, content?: string): void {
+export function pendingAccordionTransition(pane: HTMLElement): Promise<void> | undefined {
+  return accordionAnimations.get(pane)?.finished
+}
+
+export function animateAccordionPane(pane: HTMLElement, open: boolean, enabled = true, content?: string): Promise<void> {
   const height = pane.hidden ? 0 : pane.getBoundingClientRect().height
-  accordionAnimations.get(pane)?.cancel()
+  accordionAnimations.get(pane)?.animation.cancel()
   accordionAnimations.delete(pane)
   if (open && content !== undefined) pane.innerHTML = content
   pane.toggleAttribute('inert', !open)
@@ -25,28 +29,29 @@ export function animateAccordionPane(pane: HTMLElement, open: boolean, enabled =
   }
   if (!enabled || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches || !pane.animate) {
     finish()
-    return
+    return Promise.resolve()
   }
   pane.style.overflow = 'hidden'
   // Establish the collapsed (or interrupted) height before revealing content.
   // Otherwise a newly unhidden pane can paint at its natural height before
-  // Firefox applies the animation's first frame.
+  // the browser applies the animation's first frame.
   pane.style.height = `${height}px`
   pane.hidden = false
   const targetHeight = open ? pane.scrollHeight : 0
-  pane.getBoundingClientRect()
+  pane.getBoundingClientRect() // Commit the initial height before starting WAAPI.
   // Height is intentional here: adjacent accordion headings must move with the
-  // pane. Measure once, then let the browser animate this short layout change.
+  // pane. Measure at the start, then let the browser run this short layout change.
   const animation = pane.animate([
     { height: `${height}px` }, { height: `${targetHeight}px` },
   ], { duration: 240, easing: 'cubic-bezier(0.32, 0.72, 0, 1)', fill: 'both' })
-  accordionAnimations.set(pane, animation)
-  void animation.finished.then(() => {
-    if (accordionAnimations.get(pane) !== animation) return
+  const finished = animation.finished.then(() => {
+    if (accordionAnimations.get(pane)?.animation !== animation) return
     accordionAnimations.delete(pane)
     finish()
     animation.cancel() // Release the filled pixel height so open content can grow.
   }).catch(() => {})
+  accordionAnimations.set(pane, { animation, finished })
+  return finished
 }
 
 // Decorative only: controls and focus never wait for an animation to finish.

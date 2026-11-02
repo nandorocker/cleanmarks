@@ -81,14 +81,18 @@
     .about-main { padding: 30px 24px 6px; }
     .about-identity { display: flex; align-items: center; gap: 14px; padding-right: 12px; }
     .about-identity > div:last-child { min-width: 0; }
-    .about-dialog h2 { padding: 0; font-size: 24px; font-weight: 650; letter-spacing: -.6px; }
+    .about-dialog h2 { padding: 0; font-size: 24px; font-weight: 650; letter-spacing: -.6px; line-height: 1.15; }
     .about-app-icon { width: 60px; height: 60px; flex-shrink: 0; }
     .about-app-icon img { display: block; width: 60px; height: 60px; filter: drop-shadow(0 5px 12px #2e30412b); }
-    .about-version { margin: 2px 0 0; color: var(--muted); font-size: 11px; }
-    .about-site { display: inline-flex; align-items: center; gap: 6px; margin-top: 20px; font-size: 12px; text-decoration: none; }
-    .coffee-link.about-coffee { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 18px; padding: 11px 12px; background: var(--bmc-yellow); color: #1a1208; border: 0; border-radius: 9px; font-weight: 700; }
-    .about-coffee .coffee-icon { color: #1a1208; }
-    .coffee-link.about-coffee:hover:not(:disabled) { background: var(--bmc-yellow); animation: coffee-bounce .5s ease; }
+    .about-version { margin: 0; color: var(--muted); font-size: 11px; }
+    .about-message { margin: 20px 0 14px; text-align: center; font-size: 15px; letter-spacing: -.2px; }
+    .about-message a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+    .about-message a:hover { color: var(--indigo); }
+    .about-links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .about-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 12px; background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; font-size: 12px; font-weight: 600; text-decoration: none; transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease; }
+    .about-secondary:hover { background: #9fa0ff10; border-color: #c9c8de; color: var(--ink); }
+    .link-icon { flex-shrink: 0; }
+    .about-coffee { margin-top: 14px; }
     @keyframes coffee-bounce { 0%, 100% { transform: translateY(0) } 35% { transform: translateY(-3px) } 60% { transform: translateY(1px) } }
     .about-footer { margin: 0; padding: 20px 24px 18px; color: var(--muted); font-size: 11px; line-height: 1.5; }
     .about-footer a { color: inherit; text-decoration: none; } .about-footer a:hover { color: var(--indigo); }
@@ -105,14 +109,15 @@
     .removed-list li { padding: 8px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; } .removed-list li:last-child { border: 0; }
     .removed-list strong, .removed-list span { display: block; } .removed-list strong { font-weight: 500; }
     .share-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 18px; margin: 20px 0 24px; font-size: 12px; }
-    .support { background: var(--cream); border-radius: 12px; padding: 14px; font-size: 12px; } .support p { margin: 0 0 8px; }
-    .coffee-link { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; }
-    .coffee-icon { flex-shrink: 0; }
+    .support { padding: 14px; font-size: 12px; } .support p { margin: 0 0 10px; text-align: center; }
+    .coffee-link { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 12px; background: var(--bmc-yellow); color: #1a1208; border: 0; border-radius: 9px; font-weight: 700; text-decoration: none; }
+    .coffee-icon { color: #1a1208; flex-shrink: 0; }
+    .coffee-link:hover:not(:disabled) { background: var(--bmc-yellow); animation: coffee-bounce .5s ease; }
     .confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; }
     @media (prefers-reduced-motion: reduce) {
       button, .folder-row, .bookmark-row, a { transition: none; }
       button:active:not(:disabled) { transform: none; }
-      .about-coffee:hover { animation: none; }
+      .coffee-link:hover { animation: none; }
       .confetti { display: none; }
     }
   </style>
