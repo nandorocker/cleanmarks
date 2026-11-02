@@ -7,10 +7,11 @@ import { createState, applyMessage, selectRange } from './state'
 import { renderApp, updateFolderSelection } from './ui'
 import type { AppView } from './ui'
 import type { CleanupMode, CleanupOutcome } from '../types'
+import { syncSidebarTitle } from '../platform'
 
 let state = createState()
 const view: AppView = { screen: 'folders', tree: [], folders: new Set(), expanded: new Set(), sections: new Set(['dead']),
-  mode: 'move', busy: false, loading: true, notice: '', confirm: false }
+  mode: 'move', busy: false, loading: true, notice: '', confirm: false, version: browser.runtime.getManifest().version }
 let scanner: Scanner | null = null
 let generation = 0
 let anchor: string | null = null
@@ -19,7 +20,11 @@ const folderOverrides = new Map<string, boolean>()
 let renderTimer: ReturnType<typeof setTimeout> | undefined
 const root = document.getElementById('app')!
 
-function render(): void { renderApp(root, state, view) }
+function render(): void {
+  clearTimeout(renderTimer)
+  renderTimer = undefined
+  renderApp(root, state, view)
+}
 function scheduleRender(): void {
   if (renderTimer === undefined) renderTimer = setTimeout(() => { renderTimer = undefined; render() }, 80)
 }
@@ -45,6 +50,7 @@ async function scan(): Promise<void> {
   const current = ++generation
   state = { ...createState(), phase: 'scanning', lastScanDate: state.lastScanDate }
   view.screen = 'results'
+  view.completion = undefined
   view.notice = ''
   anchor = null
   render()
@@ -84,15 +90,34 @@ root.addEventListener('click', async event => {
   if (target.closest('a')) return
   const button = target.closest<HTMLButtonElement>('button[data-action]')
   if (!button || button.disabled) return
+  // Keyboard activation stays instant; pointer navigation gets the transitions.
+  view.motionEnabled = event.detail > 0
   const action = button.dataset.action
+  if (view.about && action !== 'close_about') return
+  if (view.confirm && action !== 'confirm' && action !== 'dismiss') return
   if (action === 'scan') { void scan(); return }
-  if (action === 'cancel' || action === 'folders') {
+  if (action === 'cancel' || action === 'folders' || action === 'finish') {
     ++generation; scanner?.cancel(); scanner = null
     state = { ...createState(), lastScanDate: state.lastScanDate }
     view.screen = 'folders'
     view.notice = ''
     view.confirm = false
+    view.about = false
+    view.completion = undefined
+    view.mode = 'move'
+    if (action === 'finish') {
+      const current = generation
+      view.loading = true
+      render()
+      try { await loadTree() } catch (error) {
+        if (current === generation) state = { ...state, phase: 'error', error: String(error) }
+      } finally { if (current === generation) { view.loading = false; render() } }
+      return
+    }
   }
+  if (action === 'review_remaining') view.screen = 'results'
+  if (action === 'about') { view.about = true; view.confirm = false }
+  if (action === 'close_about') view.about = false
   if (action === 'expand') {
     const id = button.dataset.id!
     if (view.expanded.has(id)) view.expanded.delete(id)
@@ -136,7 +161,10 @@ root.addEventListener('click', async event => {
       const succeeded = new Set(outcome.succeeded)
       state.results = state.results.filter(r => !succeeded.has(r.bookmark.id))
       state.selected = new Set([...state.selected].filter(id => !succeeded.has(id)))
-      view.notice = `${succeeded.size} bookmark(s) ${mode === 'move' ? 'moved to Deleted Bookmarks' : 'permanently deleted'}. ${outcome.failed.length} failed. ${outcome.failed.map(f => f.error).join(' ')} ${outcome.warning ?? ''}`
+      view.notice = `${succeeded.size} bookmark${succeeded.size === 1 ? '' : 's'} ${mode === 'move' ? 'moved to Deleted Bookmarks' : 'permanently deleted'}. ${outcome.failed.length} failed. ${outcome.failed.map(f => f.error).join(' ')} ${outcome.warning ?? ''}`
+      view.completion = { mode, bookmarks: bookmarks.filter(b => succeeded.has(b.id)),
+        remaining: bookmarks.filter(b => !succeeded.has(b.id)).length, warning: outcome.warning }
+      view.screen = 'complete'
     } catch (error) { view.notice = `${String(error)} No unconfirmed changes have been removed from this list.` }
     finally { view.busy = false }
   }
@@ -144,21 +172,36 @@ root.addEventListener('click', async event => {
 })
 
 root.addEventListener('click', event => {
-  const input = event.target as HTMLInputElement
-  if (!input.matches('input[data-bookmark]') || view.busy) return
+  const target = event.target as HTMLElement
+  if (view.busy || view.confirm || view.about || state.phase === 'scanning' || target.closest('a, button, details')) return
+  const row = target.closest('.bookmark-row, .folder-row')
+  const input = row?.querySelector<HTMLInputElement>('input[type="checkbox"]')
+  if (!input || input.disabled) return
+  if (input.dataset.folder) {
+    // Labels and checkboxes already perform their native toggle. Only forward
+    // clicks on the rest of the row, without rebuilding the folder tree.
+    if (!target.closest('input, label')) {
+      input.focus({ preventScroll: true })
+      input.click()
+    }
+    return
+  }
+  if (!input.dataset.bookmark) return
+  const checked = target === input ? input.checked : !input.checked
+  if (target !== input) input.focus({ preventScroll: true })
   const id = input.dataset.bookmark!
   // Follow the visible row order, including ranges across expanded categories.
   const ids = [...root.querySelectorAll<HTMLInputElement>('input[data-bookmark]')].map(input => input.dataset.bookmark!)
   const a = anchor ? ids.indexOf(anchor) : -1
   const b = ids.indexOf(id)
   const range = (event as MouseEvent).shiftKey && a >= 0 ? ids.slice(Math.min(a, b), Math.max(a, b) + 1) : [id]
-  state = selectRange(state, range, input.checked)
+  state = selectRange(state, range, checked)
   anchor = id
   render()
 })
 root.addEventListener('change', event => {
   const input = event.target as HTMLInputElement
-  if (input.disabled || view.busy || state.phase === 'scanning') return
+  if (input.disabled || view.busy || view.about || state.phase === 'scanning') return
   if (input.dataset.folder) {
     for (const id of folderIds(input.dataset.folder)) {
       folderOverrides.delete(id)
@@ -176,9 +219,9 @@ root.addEventListener('change', event => {
   }
 })
 root.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && view.confirm) { view.confirm = false; render() }
-  if (event.key === 'Tab' && view.confirm) {
-    const buttons = [...root.querySelectorAll<HTMLButtonElement>('dialog button')]
+  if (event.key === 'Escape' && (view.confirm || view.about)) { view.confirm = false; view.about = false; render() }
+  if (event.key === 'Tab' && (view.confirm || view.about)) {
+    const buttons = [...root.querySelectorAll<HTMLElement>('dialog a[href], dialog button:not([disabled])')]
     const first = buttons[0], last = buttons.at(-1)
     if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
     if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
@@ -186,4 +229,5 @@ root.addEventListener('keydown', event => {
 })
 window.addEventListener('pagehide', () => { ++generation; scanner?.cancel(); clearTimeout(renderTimer) })
 render()
+void syncSidebarTitle().catch(console.error)
 void loadTree().catch(error => { state = { ...state, phase: 'error', error: String(error) } }).finally(() => { view.loading = false; render() })

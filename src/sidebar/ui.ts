@@ -1,9 +1,18 @@
 import type { SidebarState } from './state'
 import type { BookmarkNode } from '../bookmark-tree'
-import type { CleanupMode } from '../types'
+import type { BookmarkResult, CleanupMode, FlatBookmark } from '../types'
+import { animateView } from './motion'
+
+export interface Completion {
+  mode: CleanupMode
+  bookmarks: FlatBookmark[]
+  remaining: number
+  warning?: string
+}
 
 export interface AppView {
-  screen: 'folders' | 'results'
+  screen: 'folders' | 'results' | 'complete'
+  completion?: Completion
   folderScroll?: number
   tree: BookmarkNode[]
   folders: Set<string>
@@ -14,8 +23,41 @@ export interface AppView {
   loading: boolean
   notice: string
   confirm: boolean
+  motionEnabled?: boolean
+  about?: boolean
+  version?: string
 }
 const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+// Full-color artwork for the success and About screens; white mark on the brand bar.
+const bookmarkIcon = '<img class="app-icon" src="../../icons/icon128.png" width="128" height="128" alt="">'
+const headerIcon = '<svg class="app-icon" viewBox="0 0 128 128" aria-hidden="true"><path fill="currentColor" d="M34 12h60a10 10 0 0 1 10 10v94L64 92l-40 24V22a10 10 0 0 1 10-10Z"/><path fill="none" stroke="var(--brand-bg)" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" d="m45 50 14 14 24-24"/></svg>'
+const iconStarburst = '<svg class="icon-starburst" viewBox="0 0 128 128" aria-hidden="true"><polygon points="64,4 76,19 94,12 97,31 116,34 109,52 124,64 109,76 116,94 97,97 94,116 76,109 64,124 52,109 34,116 31,97 12,94 19,76 4,64 19,52 12,34 31,31 34,12 52,19"/></svg>'
+// Same coffee artwork used on bounce.nan.do, shared by About and completion.
+const coffeeIcon = '<svg class="coffee-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M5 8h14l-1.5 9A2 2 0 0 1 15.52 19H8.48A2 2 0 0 1 6.5 17L5 8Z" fill="currentColor"/><path d="M5 8H4a2 2 0 0 0 0 4h1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M8 8V5M12 8V5M16 8V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>'
+const shareText = 'A fresh start for your bookmarks. Try Cleanmarks: https://apps.nan.do/cleanmarks'
+
+function resultReason(result: BookmarkResult): { label: string; detail: string } {
+  const code = result.statusCode
+  const reasons: Record<number, { label: string; detail: string }> = {
+    401: { label: 'Login required', detail: 'The site requested authentication. Open the page to check it while signed in; this does not mean the bookmark is broken.' },
+    403: { label: 'Access denied', detail: 'The site refused the check. It may block automated requests; this does not mean the bookmark is broken.' },
+    404: { label: 'Not found', detail: 'The site reported that this page was not found. This may be temporary; open the page before removing the bookmark.' },
+    410: { label: 'Gone', detail: 'The site reported that this page has been removed. Open the page to confirm before removing the bookmark.' },
+    429: { label: 'Rate limited', detail: 'The site received too many requests. Try again later; this does not mean the bookmark is broken.' },
+  }
+  if (code !== undefined) {
+    const reason = reasons[code] ?? (code >= 500 && code < 600
+      ? { label: 'Server error', detail: 'The site reported a server error. Try again later; this does not mean the bookmark is broken.' }
+      : { label: 'Unexpected response', detail: 'The site returned an unexpected response to the automatic check. Open the page to see whether it works.' })
+    return { ...reason, label: `${code} · ${reason.label}` }
+  }
+  if (/timeout|timed out/i.test(result.error ?? '')) {
+    return { label: 'Timed out', detail: 'The site did not respond in time. Try again later or open the page; this does not mean the bookmark is broken.' }
+  }
+  if (result.status === 'dead') return reasons[404]!
+  if (!result.error) return { label: 'Check failed', detail: 'The automatic check was inconclusive. Open the page to see whether it works; this does not mean the bookmark is broken.' }
+  return { label: 'Network error', detail: 'The automatic check could not connect to the site. The cause is unknown; open the page to see whether it works.' }
+}
 
 export function updateFolderSelection(root: HTMLElement, view: AppView): void {
   const inputs = root.querySelectorAll<HTMLInputElement>('input[data-folder]')
@@ -41,8 +83,27 @@ export function updateFolderSelection(root: HTMLElement, view: AppView): void {
 }
 
 export function renderApp(root: HTMLElement, state: SidebarState, view: AppView): void {
-  const changedScreen = root.dataset.screen !== view.screen
+  const previousScreen = root.dataset.screen
+  const changedScreen = previousScreen !== view.screen
+  const screenOrder = ['folders', 'results', 'complete']
+  const direction = changedScreen && previousScreen
+    ? screenOrder.indexOf(view.screen) > screenOrder.indexOf(previousScreen) ? 'forward' : 'back'
+    : undefined
+  const changedPhase = root.dataset.phase !== state.phase
+  const previousDialog = root.dataset.dialog
+  const dialog = view.about ? 'about' : view.confirm ? 'confirm' : ''
+  // Progress is the only changing UI while scanning. Keep buttons mounted so
+  // a response arriving between pointerdown and pointerup cannot swallow Cancel.
+  if (!changedScreen && !changedPhase && view.screen === 'results' && state.phase === 'scanning' && previousDialog === dialog) {
+    const count = root.querySelector('[data-scan-count]')
+    if (count) count.textContent = `Checking ${state.progress.checked} / ${state.progress.total}`
+    const progress = root.querySelector('progress')
+    if (progress) { progress.max = state.progress.total || 1; progress.value = state.progress.checked }
+    return
+  }
   root.dataset.screen = view.screen
+  root.dataset.phase = state.phase
+  root.dataset.dialog = dialog
   const focused = (document.activeElement as HTMLElement | null)?.dataset.focus
   const scroll = root.querySelector('#results')?.scrollTop ?? 0
   const hadDialog = !!root.querySelector('dialog')
@@ -54,8 +115,6 @@ export function renderApp(root: HTMLElement, state: SidebarState, view: AppView)
   const uncertain = state.results.filter(r => r.status === 'unreachable')
   const moved = state.results.filter(r => r.status === 'moved')
   const reviewCount = dead.length + uncertain.length + moved.length
-  const selectedUncertain = uncertain.filter(r => state.selected.has(r.bookmark.id)).length
-  const selectedMoved = moved.filter(r => state.selected.has(r.bookmark.id)).length
   function folders(nodes: BookmarkNode[]): string {
     return nodes.filter(n => !n.url).map(node => {
       if (!node.title && !node.parentId) return folders(node.children ?? [])
@@ -71,48 +130,91 @@ export function renderApp(root: HTMLElement, state: SidebarState, view: AppView)
     if (!results.length) return ''
     const expanded = view.sections.has(status)
     return `<section><h2><button data-action="section" data-status="${status}" data-focus="section-${status}" aria-expanded="${expanded}">${expanded ? '▾' : '▸'} ${title} <span>${results.length}</span></button></h2>
-      ${expanded ? results.map(result => `<div class="bookmark-row">
+      ${expanded ? results.map(result => {
+        const reason = resultReason(result)
+        return `<div class="bookmark-row">
         <input aria-label="Select ${escape(result.bookmark.title)}" type="checkbox" data-bookmark="${escape(result.bookmark.id)}" data-focus="bookmark-${escape(result.bookmark.id)}" ${state.selected.has(result.bookmark.id) ? 'checked' : ''} ${view.busy ? 'disabled' : ''}>
         <div class="bookmark-info"><a href="${escape(result.bookmark.url)}" target="_blank" rel="noopener noreferrer" title="${escape(result.bookmark.url)}">${escape(result.bookmark.title)}</a>
         <div class="muted truncate">${escape(result.bookmark.url)}</div>
         <div class="muted">${escape(result.bookmark.folderPath ?? '')}</div>
         ${result.redirectUrl ? `<div class="muted">Redirects to ${escape(result.redirectUrl)}</div>` : ''}
-        <div class="reason">${result.statusCode ?? ''} ${escape(result.error ?? (status === 'dead' ? 'Page not found — may be temporary' : ''))}</div></div></div>`).join('') : ''}</section>`
+        ${status !== 'moved' ? `<details class="reason"><summary data-focus="reason-${escape(result.bookmark.id)}" title="${escape(reason.detail)}">${escape(reason.label)}</summary><p>${escape(reason.detail)}</p></details>` : ''}</div></div>`
+      }).join('') : ''}</section>`
   }
   const notice = `${state.error ? `<p role="alert" class="notice">${escape(state.error)}</p>` : ''}
     ${view.notice ? `<p role="status" class="notice">${escape(view.notice)}</p>${view.notice.includes('Create replacement folder') ? '<button data-action="replace" '+disabled+'>Create replacement folder</button>' : ''}` : ''}`
-  const setup = view.screen === 'folders' ? `<section class="setup-screen">
+  const setup = view.screen === 'folders' ? `<section class="setup-screen" ${dialog ? 'inert' : ''}>
       <div class="controls"><button data-action="folders-all" ${disabled}>Select all</button><button data-action="folders-none" ${disabled}>Select none</button></div>
       <ul class="folder-tree" aria-label="Folders to scan">${folders(view.tree)}</ul>
       ${notice}
-      <footer><button class="primary" data-action="scan" data-focus="scan" ${view.loading ? 'disabled' : ''}>${view.loading ? 'Loading folders…' : 'Scan bookmarks'}</button>
-      <p class="muted">Deleted Bookmarks is excluded.</p></footer></section>` : ''
-  const review = view.screen === 'results' ? `<section class="review-screen" ${view.confirm ? 'inert' : ''}>
-    <nav class="controls" aria-label="Scan navigation"><button data-action="${state.phase === 'scanning' ? 'cancel' : 'folders'}" data-focus="back" ${view.busy ? 'disabled' : ''}>${state.phase === 'scanning' ? 'Cancel and go back' : 'Back to folders'}</button>
-    ${state.phase !== 'scanning' ? `<button data-action="scan" data-focus="scan" ${view.busy ? 'disabled' : ''}>${state.phase === 'error' ? 'Retry scan' : 'Scan again'}</button>` : ''}</nav>
-    <div role="status" aria-live="polite">${state.phase === 'scanning' ? `<p>Checking ${state.progress.checked} / ${state.progress.total}</p><progress max="${state.progress.total || 1}" value="${state.progress.checked}"></progress><p class="muted">Keep this sidebar open while scanning.</p>` : ''}</div>
+       <footer><button class="primary" data-action="scan" data-focus="scan" ${view.loading ? 'disabled' : ''}>${view.loading ? 'Loading folders…' : 'Scan bookmarks'}</button></footer></section>` : ''
+  const review = view.screen === 'results' ? `<section class="review-screen" ${dialog ? 'inert' : ''}>
+    <div role="status" aria-live="polite">${state.phase === 'scanning' ? `<p data-scan-count>Checking ${state.progress.checked} / ${state.progress.total}</p><progress max="${state.progress.total || 1}" value="${state.progress.checked}"></progress>` : ''}</div>
+    ${state.phase === 'scanning' ? '<div class="scan-cancel"><button data-action="cancel" data-focus="cancel">Cancel</button></div>' : ''}
     ${notice}
-    ${state.phase === 'done' ? `<div class="summary">${dead.length} likely dead · ${uncertain.length} couldn’t verify · ${moved.length} redirected
+    ${state.phase === 'done' ? `<div class="summary">${dead.length} likely dead · ${uncertain.length} ${uncertain.length === 1 ? 'needs' : 'need'} review · ${moved.length} redirected
       ${!state.results.length ? '<p>No HTTP(S) bookmarks in the selected folders.</p>' : ''}
       ${state.results.length && !dead.length && !uncertain.length && !moved.length ? '<p>No broken links found.</p>' : ''}</div>` : ''}
-    <div id="results">${state.phase === 'done' ? `${reviewCount ? `<div class="controls"><button data-action="all" data-focus="all" ${disabled}>Select all</button><button data-action="none" data-focus="none" ${disabled}>Select none</button><span class="muted">Shift-click selects a range</span></div>` : ''}${section('dead', 'Likely dead', dead)}${section('unreachable', 'Couldn’t verify', uncertain)}${section('moved', 'Redirected', moved)}` : ''}</div>
-    ${state.phase === 'done' && reviewCount ? `<footer><label><input id="delete-mode" data-focus="delete-mode" type="checkbox" ${view.mode === 'delete' ? 'checked' : ''} ${disabled}> Delete permanently instead of moving</label>
-      <button class="${view.mode === 'delete' ? 'danger' : 'primary'}" data-action="review" data-focus="review" ${!state.selected.size || view.busy ? 'disabled' : ''}>${view.busy ? 'Working…' : `${view.mode === 'delete' ? 'Delete' : 'Move'} ${state.selected.size} bookmark(s)`}</button>
-      <p class="muted">${view.mode === 'move' ? 'Moves to Deleted Bookmarks. You can move them back in your bookmark manager.' : 'Permanent deletion cannot be undone.'}</p></footer>` : ''}</section>` : ''
-  root.innerHTML = `<header><p class="step">Step ${view.screen === 'folders' ? '1' : '2'} of 2</p><h1 tabindex="-1">${view.screen === 'folders' ? 'Choose folders' : state.phase === 'scanning' ? 'Checking bookmarks' : 'Review results'}</h1>
-    ${view.screen === 'folders' ? '<p class="muted">Selecting a folder includes its subfolders.</p>' : ''}</header>
-    ${view.screen === 'folders' ? setup : review}
+    <div id="results">${state.phase === 'done' ? `${reviewCount ? `<div class="controls"><button data-action="all" data-focus="all" ${disabled}>Select all</button><button data-action="none" data-focus="none" ${disabled}>Select none</button></div>` : ''}${section('dead', 'Likely dead', dead)}${section('unreachable', 'Needs review', uncertain)}${section('moved', 'Redirected', moved)}` : ''}</div>
+    ${state.phase !== 'scanning' ? `<footer>${state.phase === 'done' && reviewCount ? `<label><input id="delete-mode" data-focus="delete-mode" type="checkbox" ${view.mode === 'delete' ? 'checked' : ''} ${disabled}> Delete permanently instead of moving</label>
+      <button class="${view.mode === 'delete' ? 'danger' : 'primary'}" data-action="review" data-focus="review" ${!state.selected.size || view.busy ? 'disabled' : ''}>${view.busy ? 'Working…' : `Remove ${state.selected.size} bookmark${state.selected.size === 1 ? '' : 's'}`}</button>` : ''}
+       <button class="${state.phase === 'done' && !reviewCount ? 'primary' : 'secondary'}" data-action="${state.phase === 'done' && !reviewCount ? 'finish' : 'folders'}" data-focus="cancel" ${view.busy ? 'disabled' : ''}>${state.phase === 'done' && !reviewCount ? 'Finish' : 'Cancel'}</button></footer>` : ''}</section>` : ''
+  const completed = view.completion
+  const removedCount = completed?.bookmarks.length ?? 0
+  const hasIssues = !!completed && (completed.remaining > 0 || !!completed.warning)
+  const complete = view.screen === 'complete' && completed ? `<section class="completion-screen" ${dialog ? 'inert' : ''}>
+    <div class="completion-content">
+      <div class="success-icon ${hasIssues ? 'partial' : ''}" aria-hidden="true">${hasIssues ? '<span>!</span>' : iconStarburst + bookmarkIcon}</div>
+      <h1 tabindex="-1">${hasIssues ? removedCount ? 'A little more to do' : 'Nothing removed yet' : 'Nice work!'}</h1>
+      <p class="completion-summary">${removedCount} bookmark${removedCount === 1 ? '' : 's'} ${completed.mode === 'move' ? 'moved to Deleted Bookmarks' : 'permanently deleted'}.</p>
+      ${completed.remaining ? `<p class="notice">${completed.remaining} selected bookmark${completed.remaining === 1 ? ' still needs' : 's still need'} attention.</p>` : ''}
+      ${completed.warning ? `<p role="alert" class="notice">${escape(completed.warning)}</p>` : ''}
+      ${removedCount ? `<details class="removed-list"><summary>See removed bookmarks</summary><ul>${completed.bookmarks.map(b => `<li><strong>${escape(b.title)}</strong><span class="muted">${escape(b.url)}</span></li>`).join('')}</ul></details>` : ''}
+      ${hasIssues ? '' : '<p class="completion-note">A little less clutter. A little more clarity.</p>'}
+      <div class="share-links"><a href="https://bsky.app/intent/compose?text=${encodeURIComponent(shareText)}" target="_blank" rel="noopener noreferrer">Share on Bluesky</a><a href="https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}" target="_blank" rel="noopener noreferrer">Share on X</a></div>
+      <div class="support"><p>Made by <a href="https://nan.do" target="_blank" rel="noopener noreferrer">nando rossi (nan.do)</a></p><a class="coffee-link" href="https://buymeacoffee.com/nandorossi" target="_blank" rel="noopener noreferrer">${coffeeIcon} Buy me a coffee</a></div>
+    </div>
+    <footer>${hasIssues ? '<button data-action="review_remaining" data-focus="review-remaining">Review remaining</button>' : ''}<button class="primary" data-action="finish" data-focus="finish">Finish</button></footer>
+    </section>` : ''
+  root.innerHTML = `<header ${dialog ? 'inert' : ''}>
+    <div class="brand-bar"><div class="brand">${headerIcon}<span>Cleanmarks</span></div><button class="about-button" data-action="about" data-focus="about" aria-label="About Cleanmarks${view.version ? ', version ' + escape(view.version) : ''}" title="About Cleanmarks" ${view.busy ? 'disabled' : ''}>${view.version ? `<span>v${escape(view.version)}</span>` : ''}<span class="info-symbol" aria-hidden="true">i</span></button></div>
+    ${view.screen !== 'complete' ? `<div class="stage-header"><p class="step">Step ${view.screen === 'folders' ? '1' : '2'} of 2</p>
+    <div class="title-row"><h1 tabindex="-1">${view.screen === 'folders' ? 'Choose folders' : state.phase === 'scanning' ? 'Checking bookmarks' : 'Review results'}</h1>
+       ${view.screen === 'results' && state.phase !== 'scanning' ? `<button class="rescan-button" data-action="scan" data-focus="scan" aria-label="${state.phase === 'error' ? 'Retry scan' : 'Scan again'}" title="${state.phase === 'error' ? 'Retry scan' : 'Scan again'}" ${view.busy ? 'disabled' : ''}><span aria-hidden="true">↻</span></button>` : ''}</div>
+    </div>` : ''}
+    </header>
+    ${view.screen === 'folders' ? setup : view.screen === 'results' ? review : complete}
     ${view.confirm ? `<dialog open aria-modal="true" aria-labelledby="confirm-title"><h2 id="confirm-title">${view.mode === 'move' ? 'Move to Deleted Bookmarks?' : 'Permanently delete bookmarks?'}</h2><p>${state.selected.size} selected. ${view.mode === 'move' ? 'You can move these back using your browser’s bookmark manager.' : 'This cannot be undone.'}</p>
-      ${selectedUncertain || selectedMoved ? `<p>Includes ${selectedUncertain} couldn’t verify and ${selectedMoved} redirected. These links are not confirmed dead.</p>` : ''}
-      <div class="controls"><button data-action="dismiss">Cancel</button><button class="${view.mode === 'delete' ? 'danger' : 'primary'}" data-action="confirm">${view.mode === 'move' ? 'Confirm move' : 'Delete permanently'}</button></div></dialog>` : ''}`
+      <div class="controls"><button data-action="dismiss">Cancel</button><button class="${view.mode === 'delete' ? 'danger' : 'primary'}" data-action="confirm">${view.mode === 'move' ? 'Confirm move' : 'Delete permanently'}</button></div></dialog>` : ''}
+    ${view.about ? `<dialog class="about-dialog" open aria-modal="true" aria-labelledby="about-title">
+      <button class="about-close" data-action="close_about" data-focus="close-about" aria-label="Close about"><span aria-hidden="true">×</span></button>
+      <div class="about-main">
+        <div class="about-identity"><div class="about-app-icon">${bookmarkIcon}</div><div><h2 id="about-title">Cleanmarks</h2>${view.version ? `<p class="about-version">Version ${escape(view.version)}</p>` : ''}</div></div>
+        <p class="about-author">Made by <a href="https://nan.do" target="_blank" rel="noopener noreferrer">nando rossi</a></p>
+        <a class="about-site" href="https://apps.nan.do/cleanmarks" target="_blank" rel="noopener noreferrer">apps.nan.do/cleanmarks <span aria-hidden="true">↗</span></a>
+        <a class="coffee-link about-coffee" href="https://buymeacoffee.com/nandorossi" target="_blank" rel="noopener noreferrer">${coffeeIcon} Buy me a coffee</a>
+      </div>
+      <div class="about-credits"><h3>Credits &amp; licenses</h3><ul>
+        <li><div><a class="credit-name" href="https://github.com/steipete/CodexBar" target="_blank" rel="noopener noreferrer">CodexBar</a><span class="credit-note">Confetti by Peter Steinberger</span></div><a class="credit-license" href="../../licenses/CodexBar-MIT.txt" target="_blank" rel="noopener noreferrer">MIT license</a></li>
+        <li><div><a class="credit-name" href="https://github.com/mozilla/webextension-polyfill" target="_blank" rel="noopener noreferrer">webextension-polyfill</a><span class="credit-note">By Mozilla</span></div><a class="credit-license" href="../../licenses/webextension-polyfill-MPL-2.0.txt" target="_blank" rel="noopener noreferrer">MPL 2.0 license</a></li>
+      </ul></div>
+      <p class="about-copyright">© ${new Date().getFullYear()} nando rossi</p></dialog>` : ''}`
   updateFolderSelection(root, view)
   const resultsElement = root.querySelector('#results')
   if (resultsElement) resultsElement.scrollTop = scroll
   const folderTree = root.querySelector('.folder-tree')
   if (folderTree) folderTree.scrollTop = view.folderScroll
   if (document.scrollingElement) document.scrollingElement.scrollTop = changedScreen ? 0 : pageScroll
-  if (view.confirm) root.querySelector<HTMLButtonElement>('dialog button')?.focus()
+  if (dialog) root.querySelector<HTMLButtonElement>('dialog button')?.focus()
+  else if (previousDialog === 'about') root.querySelector<HTMLButtonElement>('[data-action="about"]')?.focus({ preventScroll: true })
   else if (hadDialog) root.querySelector<HTMLButtonElement>('[data-action="review"]')?.focus()
   else if (changedScreen) root.querySelector<HTMLElement>('h1')?.focus({ preventScroll: true })
   else if (focused) [...root.querySelectorAll<HTMLElement>('[data-focus]')].find(el => el.dataset.focus === focused)?.focus({ preventScroll: true })
+  animateView(root, {
+    screen: changedScreen,
+    phase: changedPhase && view.screen === 'results',
+    dialog: !!dialog && !hadDialog,
+    celebrate: changedScreen && view.screen === 'complete' && removedCount > 0 && !hasIssues,
+    direction,
+  }, view.motionEnabled)
 }

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Clean Bookmarks",
+  "name": "Cleanmarks",
   "version": "0.1.0",
-  "description": "Find and remove dead bookmarks.",
+  "description": "A fresh start for your bookmarks. Find broken links and clear the clutter.",
   "permissions": ["bookmarks", "storage"],
   "host_permissions": ["<all_urls>"],
   "background": {
@@ -10,14 +10,24 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Clean Bookmarks"
+    "default_title": "Cleanmarks",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
   },
   "sidebar_action": {
     "default_panel": "src/sidebar/index.html",
-    "default_title": "Clean Bookmarks"
+    "default_title": "Cleanmarks",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
   },
   "icons": {
     "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   }

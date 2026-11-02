@@ -34,9 +34,12 @@ function manifestPlugin(isChrome: boolean): Plugin {
 
       // Copy icons
       mkdirSync(`${outDir}/icons`, { recursive: true })
-      for (const size of [16, 48, 128]) {
+      for (const size of [16, 32, 48, 128]) {
         copyFileSync(`src/icons/icon${size}.png`, `${outDir}/icons/icon${size}.png`)
       }
+      mkdirSync(`${outDir}/licenses`, { recursive: true })
+      copyFileSync('licenses/CodexBar-MIT.txt', `${outDir}/licenses/CodexBar-MIT.txt`)
+      copyFileSync('node_modules/webextension-polyfill/LICENSE', `${outDir}/licenses/webextension-polyfill-MPL-2.0.txt`)
     }
   }
 }
