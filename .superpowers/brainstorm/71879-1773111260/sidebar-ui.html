@@ -1,0 +1,109 @@
+<h2>Sidebar UI Design</h2>
+<p class="subtitle">Full results view in the browser's side panel</p>
+
+<div class="section">
+  <div class="split" style="align-items:flex-start">
+
+    <div class="mockup" style="flex:0 0 320px">
+      <div class="mockup-header" style="display:flex;justify-content:space-between;align-items:center">
+        <span>🧹 Clean Bookmarks</span>
+        <span style="font-size:11px;color:var(--text-secondary)">⚙️</span>
+      </div>
+      <div class="mockup-body" style="padding:0">
+
+        <!-- Summary bar -->
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;gap:12px;font-size:12px">
+          <span style="color:#e05c5c">● 47 dead</span>
+          <span style="color:#e0a95c">● 18 moved</span>
+          <span style="color:#888">● 6 unreachable</span>
+        </div>
+
+        <!-- Dead section -->
+        <div style="border-bottom:1px solid var(--border)">
+          <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;background:#e05c5c11;cursor:pointer">
+            <span style="font-weight:600;font-size:13px;color:#e05c5c">● Dead — 47</span>
+            <div style="display:flex;gap:10px;font-size:11px;color:var(--text-secondary)">
+              <span style="cursor:pointer;text-decoration:underline">all</span>
+              <span style="cursor:pointer;text-decoration:underline">none</span>
+              <span>▾</span>
+            </div>
+          </div>
+          <div style="max-height:160px;overflow-y:auto">
+            <div style="padding:6px 16px;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)22">
+              <input type="checkbox" checked style="flex-shrink:0">
+              <div style="min-width:0">
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)">My Old Blog</div>
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-secondary);font-size:11px">oldblog.wordpress.com/2011/…</div>
+              </div>
+              <span style="margin-left:auto;font-size:10px;color:#e05c5c;flex-shrink:0">404</span>
+            </div>
+            <div style="padding:6px 16px;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)22">
+              <input type="checkbox" checked style="flex-shrink:0">
+              <div style="min-width:0">
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Startup I worked at</div>
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-secondary);font-size:11px">acme-startup.com</div>
+              </div>
+              <span style="margin-left:auto;font-size:10px;color:#e05c5c;flex-shrink:0">DNS</span>
+            </div>
+            <div style="padding:6px 16px;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)22">
+              <input type="checkbox" checked style="flex-shrink:0">
+              <div style="min-width:0">
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Free icons resource</div>
+                <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-secondary);font-size:11px">freeicons.net/pack/…</div>
+              </div>
+              <span style="margin-left:auto;font-size:10px;color:#e05c5c;flex-shrink:0">404</span>
+            </div>
+            <div style="padding:6px 16px;font-size:12px;color:var(--text-secondary);font-style:italic">+ 44 more…</div>
+          </div>
+        </div>
+
+        <!-- Moved section (collapsed) -->
+        <div style="border-bottom:1px solid var(--border)">
+          <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+            <span style="font-weight:600;font-size:13px;color:#e0a95c">● Moved — 18</span>
+            <div style="display:flex;gap:10px;font-size:11px;color:var(--text-secondary)">
+              <span style="cursor:pointer;text-decoration:underline">all</span>
+              <span style="cursor:pointer;text-decoration:underline">none</span>
+              <span>▸</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Unreachable section (collapsed) -->
+        <div style="border-bottom:1px solid var(--border)">
+          <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer">
+            <span style="font-weight:600;font-size:13px;color:#888">● Unreachable — 6</span>
+            <div style="display:flex;gap:10px;font-size:11px;color:var(--text-secondary)">
+              <span style="cursor:pointer;text-decoration:underline">all</span>
+              <span style="cursor:pointer;text-decoration:underline">none</span>
+              <span>▸</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zap button -->
+        <div style="padding:14px 16px">
+          <button class="mock-button" style="width:100%;background:#e05c5c;border-color:#e05c5c;font-size:14px;padding:10px">
+            ⚡ Zap 47 bookmarks
+          </button>
+          <div style="font-size:11px;color:var(--text-secondary);text-align:center;margin-top:6px">47 selected across all categories</div>
+        </div>
+
+      </div>
+    </div>
+
+    <div style="flex:1;padding-left:8px">
+      <h3>Key design decisions</h3>
+      <ul style="font-size:13px;line-height:2;color:var(--text-secondary)">
+        <li>Sections are <strong>collapsible</strong> — expand only what you care about</li>
+        <li>Each row shows <strong>bookmark name + URL + status code</strong></li>
+        <li>Scrollable per section — handles 300+ dead links fine</li>
+        <li><strong>Dead selected by default</strong>, Moved + Unreachable unselected</li>
+        <li>Zap button counts <strong>total across all categories</strong></li>
+        <li>Confirmation dialog before deletion</li>
+        <li>Toolbar icon opens/closes the sidebar</li>
+      </ul>
+    </div>
+
+  </div>
+</div>

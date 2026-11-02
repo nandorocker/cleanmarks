@@ -1,22 +1,18 @@
-// src/background/rate-limiter.ts
-
 export class RateLimiter {
-  private readonly delayMs: number
-  private lastRequestTime = new Map<string, number>()
+  private nextSlot = new Map<string, number>()
+  constructor(private readonly delayMs: number) {}
 
-  constructor(perDomainDelayMs: number) {
-    this.delayMs = perDomainDelayMs
-  }
-
-  async wait(domain: string): Promise<void> {
-    const last = this.lastRequestTime.get(domain)
+  async wait(domain: string, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) return
     const now = Date.now()
-    if (last !== undefined) {
-      const elapsed = now - last
-      if (elapsed < this.delayMs) {
-        await new Promise(resolve => setTimeout(resolve, this.delayMs - elapsed))
-      }
-    }
-    this.lastRequestTime.set(domain, Date.now())
+    const slot = Math.max(now, this.nextSlot.get(domain) ?? now)
+    this.nextSlot.set(domain, slot + this.delayMs)
+    if (slot === now) return
+    await new Promise<void>(resolve => {
+      const finish = () => { clearTimeout(timer); signal?.removeEventListener('abort', finish); resolve() }
+      const timer = setTimeout(finish, slot - now)
+      signal?.addEventListener('abort', finish, { once: true })
+      if (signal?.aborted) finish()
+    })
   }
 }

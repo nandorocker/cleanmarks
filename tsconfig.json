@@ -6,8 +6,10 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "outDir": "dist",
-    "rootDir": "src",
-    "types": ["chrome", "vitest/globals"]
+    "rootDir": ".",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "types": ["chrome", "vitest/globals", "node"]
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "vite.config.ts"]
 }

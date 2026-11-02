@@ -6,6 +6,9 @@ export interface FlatBookmark {
   id: string
   title: string
   url: string
+  parentId?: string
+  index?: number
+  folderPath?: string
 }
 
 export interface BookmarkResult {
@@ -34,6 +37,18 @@ export type BackgroundMessage =
 export type SidebarMessage =
   | { type: 'start_scan' }
   | { type: 'cancel_scan' }
+
+export type CleanupMode = 'move' | 'delete'
+export interface CleanupRequest {
+  type: 'cleanup'
+  mode: CleanupMode
+  bookmarks: FlatBookmark[]
+}
+export interface CleanupOutcome {
+  succeeded: string[]
+  failed: { id: string; error: string }[]
+  warning?: string
+}
 
 export interface Settings {
   concurrency: number           // default: 5

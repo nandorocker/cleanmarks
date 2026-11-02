@@ -1,4 +1,5 @@
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig } from 'vitest/config'
+import type { Plugin } from 'vite'
 import { resolve } from 'path'
 import { readFileSync, writeFileSync, copyFileSync, mkdirSync } from 'fs'
 
@@ -14,7 +15,7 @@ function manifestPlugin(isChrome: boolean): Plugin {
         const merged = {
           ...base,
           ...overrides,
-          permissions: [...(base.permissions ?? []), ...(overrides.permissions ?? [])],
+          permissions: [...new Set([...(base.permissions ?? []), ...(overrides.permissions ?? [])])],
         }
         // Chrome doesn't use sidebar_action
         delete merged.sidebar_action
@@ -32,12 +33,10 @@ function manifestPlugin(isChrome: boolean): Plugin {
       }
 
       // Copy icons
-      try {
-        mkdirSync(`${outDir}/icons`, { recursive: true })
-        for (const size of [16, 48, 128]) {
-          copyFileSync(`src/icons/icon${size}.png`, `${outDir}/icons/icon${size}.png`)
-        }
-      } catch { /* icons not yet present, skip */ }
+      mkdirSync(`${outDir}/icons`, { recursive: true })
+      for (const size of [16, 48, 128]) {
+        copyFileSync(`src/icons/icon${size}.png`, `${outDir}/icons/icon${size}.png`)
+      }
     }
   }
 }
@@ -51,12 +50,10 @@ export default defineConfig(({ mode }) => {
       emptyOutDir: true,
       rollupOptions: {
         input: {
-          background: resolve(__dirname, 'src/background/index.ts'),
-          sidebar: resolve(__dirname, 'src/sidebar/index.html'),
+          background: resolve(import.meta.dirname, 'src/background/index.ts'),
+          sidebar: resolve(import.meta.dirname, 'src/sidebar/index.html'),
         },
         output: {
-          // Service workers don't have `window`; shim it with `self` for background only
-          banner: (chunk) => chunk.name === 'background' ? 'const window = self;' : '',
           entryFileNames: '[name].js',
           chunkFileNames: '[name].js',
           assetFileNames: '[name].[ext]',

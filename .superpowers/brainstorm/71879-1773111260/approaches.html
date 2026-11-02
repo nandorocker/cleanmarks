@@ -1,0 +1,68 @@
+<h2>3 Approaches to Clean Bookmarks</h2>
+<p class="subtitle">Pick the architecture that fits best — or mix elements</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Extension-Only (No Backend)</h3>
+      <p>Pure browser extension. Checks URLs directly from the browser. No server to host or maintain.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Zero infrastructure cost</li>
+          <li>Instant publish to extension stores</li>
+          <li>User data never leaves their browser</li>
+          <li>Works offline (for local checks)</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>CORS blocks many sites from extensions</li>
+          <li>No fallback for blocked URLs</li>
+          <li>Limited concurrency in browser</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Extension + Optional Proxy ⭐ Recommended</h3>
+      <p>Extension tries in-browser first. For blocked/CORS-failing URLs, falls back to a lightweight proxy service. Proxy can be self-hosted or use a free tier.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Works without proxy for most URLs</li>
+          <li>Proxy handles the hard cases (CORS, firewalls)</li>
+          <li>Users can bring their own proxy</li>
+          <li>Graceful degradation if proxy is down</li>
+          <li>Privacy-respecting by default</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>Proxy needs hosting (small cost)</li>
+          <li>Slightly more complex architecture</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Extension + Required Backend</h3>
+      <p>All URL checking goes through your server. Extension is a thin UI. Backend handles all requests, rate limiting, caching.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul>
+          <li>Most reliable URL checking</li>
+          <li>Can cache results across users</li>
+          <li>Centralized rate limit management</li>
+          <li>Best for scale</li>
+        </ul></div>
+        <div class="cons"><h4>Cons</h4><ul>
+          <li>All user bookmarks go through your server (privacy concern)</li>
+          <li>Ongoing hosting cost required</li>
+          <li>Extension useless if server is down</li>
+          <li>More complex to build and operate</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</div>

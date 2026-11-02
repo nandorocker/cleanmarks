@@ -13,6 +13,7 @@ type ScannerListener<E extends ScannerEvent> =
 export class Scanner {
   private readonly settings: Settings
   private cancelled = false
+  private controller = new AbortController()
   private listeners: Partial<Record<ScannerEvent, Function[]>> = {}
 
   constructor(settings: Settings) {
@@ -32,40 +33,49 @@ export class Scanner {
 
   cancel(): void {
     this.cancelled = true
+    this.controller.abort()
   }
 
   async run(bookmarks: FlatBookmark[]): Promise<void> {
     this.cancelled = false
+    this.controller = new AbortController()
     const limiter = new RateLimiter(this.settings.perDomainDelayMs)
     const total = bookmarks.length
     let checked = 0
 
-    const queue = [...bookmarks]
+    const groups = new Map<string, FlatBookmark[]>()
+    for (const bookmark of bookmarks) {
+      const group = groups.get(bookmark.url) ?? []
+      group.push(bookmark)
+      groups.set(bookmark.url, group)
+    }
+    const queue = [...groups.values()]
+    let cursor = 0
 
     const processNext = async (): Promise<void> => {
-      const bookmark = queue.shift()
-      if (!bookmark || this.cancelled) return
+      const group = queue[cursor++]
+      const bookmark = group?.[0]
+      if (!bookmark || !group || this.cancelled) return
 
       const domain = new URL(bookmark.url).hostname
-      await limiter.wait(domain)
+      await limiter.wait(domain, this.controller.signal)
       if (this.cancelled) return
 
-      const checkResult = await checkUrl(bookmark.url, this.settings.timeoutMs)
-      checked++
+      const checkResult = await checkUrl(bookmark.url, this.settings.timeoutMs, this.controller.signal)
+      for (const bookmark of group) {
+        checked++
 
-      const result: BookmarkResult = {
-        bookmark,
-        ...checkResult,
-      }
+        const result: BookmarkResult = { bookmark, ...checkResult }
 
-      if (!this.cancelled) {
-        this.emit('result', result)
-        this.emit('progress', checked, total)
+        if (!this.cancelled) {
+          this.emit('result', result)
+          this.emit('progress', checked, total)
+        }
       }
     }
 
     const runWorker = async (): Promise<void> => {
-      while (queue.length > 0 && !this.cancelled) {
+      while (cursor < queue.length && !this.cancelled) {
         await processNext()
       }
     }

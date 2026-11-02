@@ -1,8 +1,11 @@
 // src/background/bookmarks.ts
-import type { BookmarkTreeNode } from 'webextension-polyfill'
+import type { Bookmarks } from 'webextension-polyfill'
 import type { FlatBookmark } from '../types'
+import Browser from 'webextension-polyfill'
 
-export function flattenBookmarks(nodes: BookmarkTreeNode[]): FlatBookmark[] {
+declare const __IS_CHROME__: boolean
+
+export function flattenBookmarks(nodes: Bookmarks.BookmarkTreeNode[]): FlatBookmark[] {
   const results: FlatBookmark[] = []
   for (const node of nodes) {
     if (node.url) {
@@ -20,9 +23,10 @@ export function flattenBookmarks(nodes: BookmarkTreeNode[]): FlatBookmark[] {
 }
 
 export async function getAllBookmarks(): Promise<FlatBookmark[]> {
-  const browser = typeof globalThis !== 'undefined' && 'browser' in globalThis
-    ? (globalThis as any).browser
-    : await import('webextension-polyfill').then(m => m.default)
+  // Use chrome directly on Chrome, polyfill on Firefox
+  const browser = __IS_CHROME__
+    ? (chrome as any)
+    : Browser
   const tree = await browser.bookmarks.getTree()
   return flattenBookmarks(tree)
 }

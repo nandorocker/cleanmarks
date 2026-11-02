@@ -1,7 +1,9 @@
 // tests/background/bookmarks.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flattenBookmarks } from '../../src/background/bookmarks'
-import type { BookmarkTreeNode } from 'webextension-polyfill'
+import type { Bookmarks } from 'webextension-polyfill'
+type BookmarkTreeNode = Bookmarks.BookmarkTreeNode
+vi.mock('webextension-polyfill', () => ({ default: {} }))
 
 // We test the pure flatten logic — no browser API needed
 describe('flattenBookmarks', () => {

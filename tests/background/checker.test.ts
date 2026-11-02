@@ -16,6 +16,22 @@ function makeResponse(status: number, url: string = 'https://example.com') {
 describe('checkUrl', () => {
   beforeEach(() => { mockFetch.mockReset() })
 
+  it.each([401, 403, 429, 500, 503])('does not mark HTTP %s dead', async status => {
+    mockFetch.mockReturnValue(makeResponse(status))
+    expect((await checkUrl('https://example.com', 100)).status).toBe('unreachable')
+  })
+
+  it('passes cancellation to fetch', async () => {
+    const controller = new AbortController()
+    mockFetch.mockImplementation((_url, options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(new Error('aborted')))
+    }))
+    const promise = checkUrl('https://example.com', 1000, controller.signal)
+    controller.abort()
+    expect((await promise).status).toBe('unreachable')
+    expect(mockFetch.mock.calls[0]![1].signal.aborted).toBe(true)
+  })
+
   it('returns alive for 200', async () => {
     mockFetch.mockReturnValue(makeResponse(200))
     const result = await checkUrl('https://example.com', 10000)
@@ -68,7 +84,9 @@ describe('checkUrl', () => {
 
   it('returns unreachable on timeout', async () => {
     vi.useFakeTimers()
-    mockFetch.mockImplementation(() => new Promise(() => {})) // never resolves
+    mockFetch.mockImplementation((_url, options) => new Promise((_resolve, reject) => {
+      options.signal.addEventListener('abort', () => reject(new Error('aborted')))
+    }))
     const p = checkUrl('https://slow.com', 100)
     await vi.advanceTimersByTimeAsync(200)
     const result = await p

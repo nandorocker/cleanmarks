@@ -7,7 +7,7 @@ vi.mock('../../src/background/checker', () => ({
   checkUrl: vi.fn(),
 }))
 vi.mock('../../src/background/rate-limiter', () => ({
-  RateLimiter: vi.fn().mockImplementation(() => ({ wait: vi.fn().mockResolvedValue(undefined) })),
+  RateLimiter: vi.fn().mockImplementation(function () { return { wait: vi.fn().mockResolvedValue(undefined) } }),
 }))
 
 import { checkUrl } from '../../src/background/checker'
@@ -19,6 +19,16 @@ const makeBookmark = (id: string, url: string): FlatBookmark => ({
 
 describe('Scanner', () => {
   beforeEach(() => { mockCheckUrl.mockReset() })
+
+  it('checks duplicate URLs once and emits each bookmark', async () => {
+    mockCheckUrl.mockResolvedValue({ status: 'dead', statusCode: 404 })
+    const scanner = new Scanner({ concurrency: 2, perDomainDelayMs: 0, timeoutMs: 5000, cacheTtlDays: 7 })
+    const ids: string[] = []
+    scanner.on('result', result => ids.push(result.bookmark.id))
+    await scanner.run([makeBookmark('1', 'https://a.com'), makeBookmark('2', 'https://a.com')])
+    expect(mockCheckUrl).toHaveBeenCalledTimes(1)
+    expect(ids).toEqual(['1', '2'])
+  })
 
   it('emits result events for each bookmark', async () => {
     mockCheckUrl.mockResolvedValue({ status: 'alive', statusCode: 200 })
@@ -57,7 +67,7 @@ describe('Scanner', () => {
 
     const runPromise = scanner.run(bookmarks)
     scanner.cancel()
-    if (resolveCheck) resolveCheck()
+    if (resolveCheck) (resolveCheck as () => void)()
     await runPromise
 
     // At most 1 result (the in-flight one)

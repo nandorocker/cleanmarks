@@ -1,0 +1,46 @@
+<h2>Architecture Overview</h2>
+<p class="subtitle">Does this structure make sense for what you have in mind?</p>
+
+<div class="section">
+  <h3>Extension Components</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+      <div class="label">Popup UI</div>
+      <h3 style="margin:8px 0 4px">Control Panel</h3>
+      <p>Toolbar button → opens panel. Shows scan progress, then results grouped by category. Select/deselect per group. One "Zap" button.</p>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+      <div class="label">Background Service Worker</div>
+      <h3 style="margin:8px 0 4px">URL Checker</h3>
+      <p>Reads bookmarks via <code>chrome.bookmarks</code> API. Sends HEAD requests with smart concurrency. Classifies results. Survives popup close.</p>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+      <div class="label">Browser API</div>
+      <h3 style="margin:8px 0 4px">Bookmarks Access</h3>
+      <p>Native <code>bookmarks</code> permission gives read + delete access to all bookmarks. No HTML import needed — works directly with live browser data.</p>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px">
+      <div class="label">Storage</div>
+      <h3 style="margin:8px 0 4px">Scan Cache</h3>
+      <p>Results cached locally so you don't re-scan everything every time. Cache expires after X days (configurable, default 7).</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Data Flow</h3>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;font-family:monospace;font-size:13px;line-height:2">
+    Click toolbar icon<br>
+    → Background worker reads all bookmarks from browser<br>
+    → Queue URLs with per-domain rate limiting (default: 3 concurrent, 1 req/domain/sec)<br>
+    → HEAD request → follow redirects → classify result<br>
+    → Stream results live to popup as they come in<br>
+    → Show categorized results (Dead / Moved / Unreachable)<br>
+    → User selects what to delete → confirm → <code>chrome.bookmarks.remove()</code>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Browser Support</h3>
+  <p>Uses <strong>WebExtensions API</strong> — supported natively by Chrome, Firefox, Edge. Safari requires Xcode + Apple developer account to package, but same codebase works. One codebase, 4 browsers.</p>
+</div>

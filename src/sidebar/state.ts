@@ -76,3 +76,14 @@ export function selectedCount(state: SidebarState): number {
 export function resultsByStatus(state: SidebarState, status: BookmarkStatus): BookmarkResult[] {
   return state.results.filter(r => r.status === status)
 }
+
+export function selectRange(state: SidebarState, ids: string[], checked: boolean): SidebarState {
+  const selected = new Set(state.selected)
+  const eligible = new Set(state.results.filter(r => r.status !== 'alive').map(r => r.bookmark.id))
+  for (const id of ids) {
+    if (!eligible.has(id)) continue
+    if (checked) selected.add(id)
+    else selected.delete(id)
+  }
+  return { ...state, selected }
+}
