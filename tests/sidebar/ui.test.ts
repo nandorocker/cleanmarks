@@ -5,7 +5,27 @@ import { createState, applyMessage, selectRange } from '../../src/sidebar/state'
 import type { BookmarkResult } from '../../src/types'
 
 describe('review UI', () => {
-  it('gives About an app identity and credit rows, using the bounce.nan.do coffee artwork consistently', () => {
+  it('pairs each colored count with the same line icon and status class as its section heading', () => {
+    document.body.innerHTML = '<main id="app"></main>'
+    const root = document.getElementById('app')!
+    const view: AppView = { screen: 'results', tree: [], folders: new Set(), expanded: new Set(), sections: new Set(['dead']), mode: 'move', busy: false, loading: false, notice: '', confirm: false, motionEnabled: false }
+    let state = createState()
+    for (const status of ['dead', 'unreachable', 'moved'] as const) {
+      state = applyMessage(state, { type: 'result', result: { bookmark: { id: status, title: status, url: 'https://example.com' }, status } })
+    }
+    state = applyMessage(state, { type: 'scan_done' })
+    renderApp(root, state, view)
+    for (const status of ['dead', 'unreachable', 'moved']) {
+      const count = root.querySelector(`.status-summary.status-${status}`)!
+      const heading = root.querySelector(`.result-section.status-${status} .category-toggle`)!
+      expect(count.querySelector('.status-icon')!.outerHTML).toBe(heading.querySelector('.status-icon')!.outerHTML)
+      expect(count.querySelector('strong')!.textContent).toBe('1')
+      expect(heading.querySelector('.status-icon')!.getAttribute('aria-hidden')).toBe('true')
+      expect(root.querySelector(`#${heading.getAttribute('aria-controls')}`)).not.toBeNull()
+    }
+  })
+
+  it('gives About an app identity and a tiny credit line, using the bounce.nan.do coffee artwork consistently', () => {
     document.body.innerHTML = '<main id="app"></main>'
     const root = document.getElementById('app')!
     const view: AppView = { screen: 'complete', tree: [], folders: new Set(), expanded: new Set(), sections: new Set(), mode: 'move', busy: false, loading: false, notice: '', confirm: false, motionEnabled: false, version: '0.1.0',
@@ -18,7 +38,11 @@ describe('review UI', () => {
     expect(about.querySelector('.about-identity h2')!.textContent).toBe('Cleanmarks')
     expect(about.querySelector('.about-identity .app-icon')!.getAttribute('src')).toBe('../../icons/icon128.png')
     expect(about.querySelector('.about-version')!.textContent).toBe('Version 0.1.0')
-    expect(about.querySelectorAll('.about-credits li')).toHaveLength(2)
+    expect(about.querySelector('.about-footer')!.textContent!.startsWith('©2026')).toBe(true)
+    expect(about.querySelector('.about-footer')!.textContent).toContain('made with ❤️ by nando rossi')
+    const footerLinks = [...about.querySelectorAll<HTMLAnchorElement>('.about-footer a')]
+    expect(footerLinks.some(a => a.textContent === 'nando rossi' && a.href === 'https://nan.do/')).toBe(true)
+    expect(footerLinks.filter(a => new URL(a.href, 'https://x').pathname.includes('licenses/'))).toHaveLength(2)
     expect(about.querySelector('.about-coffee .coffee-icon')!.outerHTML).toBe(coffee)
     expect(about.querySelector('.coffee-icon path')!.getAttribute('d')).toBe('M5 8h14l-1.5 9A2 2 0 0 1 15.52 19H8.48A2 2 0 0 1 6.5 17L5 8Z')
     expect(about.querySelector('[data-action="close_about"]')!.getAttribute('aria-label')).toBe('Close about')
@@ -60,7 +84,8 @@ describe('review UI', () => {
     expect(root.textContent).not.toContain('Couldn’t verify')
     if (result.status !== 'dead') {
       expect(root.querySelector('[data-status="unreachable"]')!.textContent).toContain('Needs review')
-      expect(root.querySelector('.summary')!.textContent).toContain('1 needs review')
+      expect(root.querySelector('.status-summary.status-unreachable')!.textContent).toContain('Needs review')
+      expect(root.querySelector('.status-summary.status-unreachable strong')!.textContent).toBe('1')
       expect(root.querySelector<HTMLInputElement>('[data-bookmark]')!.checked).toBe(false)
     }
   })

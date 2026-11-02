@@ -4,7 +4,7 @@ import { quarantineId } from '../background/cleanup'
 import { collectBookmarks, pruneTree, resolveFolders } from '../bookmark-tree'
 import { loadSettings } from '../settings'
 import { createState, applyMessage, selectRange } from './state'
-import { renderApp, updateFolderSelection } from './ui'
+import { renderApp, updateFolderSelection, updateAccordion } from './ui'
 import type { AppView } from './ui'
 import type { CleanupMode, CleanupOutcome } from '../types'
 import { syncSidebarTitle } from '../platform'
@@ -125,8 +125,10 @@ root.addEventListener('click', async event => {
   }
   if (action === 'section') {
     const status = button.dataset.status!
-    if (view.sections.has(status)) view.sections.delete(status)
-    else view.sections.add(status)
+    view.sections = view.sections.has(status) ? new Set() : new Set([status])
+    anchor = null
+    updateAccordion(root, state, view)
+    return
   }
   if (action === 'all' || action === 'none') {
     state = selectRange(state, state.results.filter(r => r.status !== 'alive').map(r => r.bookmark.id), action === 'all')
@@ -173,7 +175,7 @@ root.addEventListener('click', async event => {
 
 root.addEventListener('click', event => {
   const target = event.target as HTMLElement
-  if (view.busy || view.confirm || view.about || state.phase === 'scanning' || target.closest('a, button, details')) return
+  if (view.busy || view.confirm || view.about || state.phase === 'scanning' || target.closest('a, button, details, [inert]')) return
   const row = target.closest('.bookmark-row, .folder-row')
   const input = row?.querySelector<HTMLInputElement>('input[type="checkbox"]')
   if (!input || input.disabled) return
@@ -191,7 +193,7 @@ root.addEventListener('click', event => {
   if (target !== input) input.focus({ preventScroll: true })
   const id = input.dataset.bookmark!
   // Follow the visible row order, including ranges across expanded categories.
-  const ids = [...root.querySelectorAll<HTMLInputElement>('input[data-bookmark]')].map(input => input.dataset.bookmark!)
+  const ids = [...root.querySelectorAll<HTMLInputElement>('input[data-bookmark]')].filter(input => !input.closest('[inert]')).map(input => input.dataset.bookmark!)
   const a = anchor ? ids.indexOf(anchor) : -1
   const b = ids.indexOf(id)
   const range = (event as MouseEvent).shiftKey && a >= 0 ? ids.slice(Math.min(a, b), Math.max(a, b) + 1) : [id]
@@ -201,7 +203,7 @@ root.addEventListener('click', event => {
 })
 root.addEventListener('change', event => {
   const input = event.target as HTMLInputElement
-  if (input.disabled || view.busy || view.about || state.phase === 'scanning') return
+  if (input.disabled || input.closest('[inert]') || view.busy || view.about || state.phase === 'scanning') return
   if (input.dataset.folder) {
     for (const id of folderIds(input.dataset.folder)) {
       folderOverrides.delete(id)

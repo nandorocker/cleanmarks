@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { animateView } from '../../src/sidebar/motion'
+import { animateView, animateAccordionPane } from '../../src/sidebar/motion'
 import { playConfetti } from '../../src/sidebar/confetti'
 import { renderApp } from '../../src/sidebar/ui'
 import type { AppView } from '../../src/sidebar/ui'
@@ -10,6 +10,7 @@ const animate = vi.fn()
 let root: HTMLElement
 beforeEach(() => {
   vi.clearAllMocks()
+  animate.mockReset()
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
   Object.defineProperty(Element.prototype, 'animate', { configurable: true, value: animate })
   document.body.innerHTML = '<main><header><div class="stage-header"></div></header><section><div class="success-icon"></div><div class="completion-content"><h1>Nice work!</h1></div><p class="completion-summary"></p></section><dialog></dialog></main>'
@@ -21,6 +22,58 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 describe('decorative motion', () => {
+  it('expands and collapses accordion height, making closing content inert immediately', async () => {
+    const pane = document.createElement('div')
+    root.append(pane)
+    pane.hidden = true
+    Object.defineProperty(pane, 'scrollHeight', { value: 180 })
+    pane.getBoundingClientRect = () => ({ height: 120 }) as DOMRect
+    let complete!: () => void
+    animate.mockImplementation(() => ({ finished: new Promise<void>(resolve => { complete = resolve }), cancel: vi.fn() }))
+    animateAccordionPane(pane, true, true, '<p>Content</p>')
+    expect(animate.mock.calls[0]![0]).toEqual([{ height: '0px' }, { height: '180px' }])
+    expect(pane.style.height).toBe('0px')
+    expect(animate.mock.calls[0]![1]).toMatchObject({ fill: 'both', duration: 240 })
+    expect(pane.hidden).toBe(false)
+    expect(pane.hasAttribute('inert')).toBe(false)
+    complete(); await Promise.resolve()
+    expect(pane.style.overflow).toBe('')
+    expect(pane.style.height).toBe('')
+    animateAccordionPane(pane, false)
+    expect(animate.mock.calls[1]![0]).toEqual([{ height: '120px' }, { height: '0px' }])
+    expect(pane.hasAttribute('inert')).toBe(true)
+    expect(pane.getAttribute('aria-hidden')).toBe('true')
+    expect(pane.hidden).toBe(false)
+    complete(); await Promise.resolve()
+    expect(pane.hidden).toBe(true)
+    expect(pane.childElementCount).toBe(0)
+  })
+  it('cancels an interrupted close without hiding a pane that was reopened', async () => {
+    const pane = document.createElement('div')
+    root.append(pane)
+    let closeFinished!: () => void, openFinished!: () => void
+    const cancel = vi.fn()
+    animate.mockReturnValueOnce({ finished: new Promise<void>(resolve => { closeFinished = resolve }), cancel })
+      .mockReturnValueOnce({ finished: new Promise<void>(resolve => { openFinished = resolve }), cancel: vi.fn() })
+    animateAccordionPane(pane, false)
+    animateAccordionPane(pane, true, true, '<p>Reopened</p>')
+    expect(cancel).toHaveBeenCalledOnce()
+    closeFinished(); await Promise.resolve()
+    expect(pane.textContent).toBe('Reopened')
+    expect(pane.hidden).toBe(false)
+    expect(pane.hasAttribute('inert')).toBe(false)
+    openFinished(); await Promise.resolve()
+    expect(pane.hidden).toBe(false)
+  })
+  it('changes accordion panes instantly for keyboard or reduced motion', () => {
+    const pane = document.createElement('div')
+    animateAccordionPane(pane, true, false, '<p>Content</p>')
+    expect(pane.hidden).toBe(false)
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })))
+    animateAccordionPane(pane, false)
+    expect(pane.hidden).toBe(true)
+    expect(animate).not.toHaveBeenCalled()
+  })
   it.each([['forward', '100%'], ['back', '-25%']] as const)('uses an iOS-style horizontal %s transition', (direction, offset) => {
     animateView(root, { screen: true, phase: false, dialog: false, celebrate: false, direction })
     expect(animate.mock.calls[0]![0]).toEqual([{ transform: `translateX(${offset})` }, { transform: 'translateX(0)' }])
